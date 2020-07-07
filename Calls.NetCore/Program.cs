@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using BulkWriter;
 using Dapper.Contrib.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +17,7 @@ namespace Calls.NetCore
             var callsCount = 100_000;
             var numbersBatchSize = 1000;
             var callsBatchSize = 1000;
-
-
+            
             var numbers = new List<PhoneNumber>(numbersCount);
             var stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -72,36 +73,69 @@ namespace Calls.NetCore
 
             #region Dapper Extensions Insert
 
-            stopwatch.Start();
-            var random = new Random();
-            using (SqlConnection connection = new SqlConnection(@"Server=.;Database=Calls;Trusted_Connection=True;MultipleActiveResultSets=true"))
+            //stopwatch.Start();
+            //var random = new Random();
+            //using (SqlConnection connection = new SqlConnection(@"Server=.;Database=Calls;Trusted_Connection=True;MultipleActiveResultSets=true"))
+            //{
+            //    connection.Open();
+            //    var transaction = connection.BeginTransaction();
+            //    for (int i = 1; i <= callsCount; i++)
+            //    {
+            //        var from = numbers[random.Next() % numbersCount];
+            //        var to = numbers[random.Next() % numbersCount];
+            //        var call = new Call
+            //        {
+            //            CallerId = from.Id,
+            //            ReceiverId = to.Id,
+            //            Duration = random.Next()
+            //        };
+            //        connection.Insert(call, transaction);
+            //        if (i % callsBatchSize == 0)
+            //        {
+            //            transaction.Commit();//30 sec is the same time for EF core without attach of Number
+            //            transaction = connection.BeginTransaction();
+            //        }
+            //    }
+
+            //    connection.Close();
+            //}
+
+            //stopwatch.Stop();
+            //Console.WriteLine($"Add 100 000 calls with Dapper {stopwatch.Elapsed.TotalSeconds} sec");
+
+            #endregion
+
+            #region BulkWriter
+
+            var startId = 1;
+            if (context.Calls.Any())
             {
-                connection.Open();
-                var transaction = connection.BeginTransaction();
-                for (int i = 1; i <= callsCount; i++)
-                {
-                    var from = numbers[random.Next() % numbersCount];
-                    var to = numbers[random.Next() % numbersCount];
-                    var call = new Call
-                    {
-                        CallerId = from.Id,
-                        ReceiverId = to.Id,
-                        Duration = random.Next()
-                    };
-                    connection.Insert(call, transaction);
-                    if (i % callsBatchSize == 0)
-                    {
-                        transaction.Commit();//30 sec is the same time for EF core without attach of Number
-                        transaction = connection.BeginTransaction();
-                    }
-                }
-
-                connection.Close();
+                startId = context.Calls.Max(x => x.Id) + 1;
             }
+            var random = new Random();
+            var calls = new List<Call>(callsCount);
+            for (int i = 1; i <= callsCount; i++)
+            {
+                var from = numbers[random.Next() % numbersCount];
+                var to = numbers[random.Next() % numbersCount];
+                var call = new Call
+                {
+                    Id = startId++,
+                    CallerId = from.Id,
+                    ReceiverId = to.Id,
+                    Duration = random.Next()
+                };
 
+                calls.Add(call);
+            }
+            stopwatch.Start();
+            using (var bulkWriter = new BulkWriter<Call>(@"Server=.;Database=Calls;Trusted_Connection=True;MultipleActiveResultSets=true"))
+            {
+                //1 billion rows - 15 sec, 100_000 rows 6 sec
+                bulkWriter.WriteToDatabase(calls);
+            }
             stopwatch.Stop();
-            Console.WriteLine($"Add 100 000 calls with Dapper {stopwatch.Elapsed.TotalSeconds} sec");
-
+            Console.WriteLine($"Add 100 000 calls with BulkWriter {stopwatch.Elapsed.TotalSeconds} sec");
             #endregion
         }
     }

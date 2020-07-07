@@ -11,11 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\Calls\Call.cs" Link="Call.cs" />
-    <Compile Include="..\Calls\PhoneNumber.cs" Link="PhoneNumber.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <PackageReference Include="BulkWriter" Version="3.0.0" />
     <PackageReference Include="Dapper" Version="2.0.35" />
     <PackageReference Include="Dapper.Contrib" Version="2.0.35" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.5">

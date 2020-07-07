@@ -11,12 +11,14 @@ namespace Calls
 		public int Id { get; set; }
 
 		//[Required]
+		[NotMapped]
 		[Write(false)]
 		public PhoneNumber Caller { get; set; }
         public int? CallerId { get; set; }
 
 		//[Required]
-        [Write(false)]
+        [NotMapped]
+		[Write(false)]
 		public PhoneNumber Receiver { get; set; }
         public int? ReceiverId { get; set; }
 
