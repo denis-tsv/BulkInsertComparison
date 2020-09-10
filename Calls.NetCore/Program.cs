@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using BulkWriter;
 using Dapper.Contrib.Extensions;
+using EFCore.BulkExtensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,28 +18,32 @@ namespace Calls.NetCore
             var callsCount = 100_000;
             var numbersBatchSize = 1000;
             var callsBatchSize = 1000;
-            
-            var numbers = new List<PhoneNumber>(numbersCount);
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
-            var context = new CallsDbContext();
-            for (int i = 1; i <= numbersCount; i++)
-            {
-                var number = new PhoneNumber
-                {
-                    Number = Guid.NewGuid().ToString()
-                };
-                numbers.Add(number);
-                context.PhoneNumbers.Add(number);
-                //if (i % numbersBatchSize == 0)
-                //{
-                //    context.SaveChanges(); //3.4 sec
-                //    context = new CallsDbContext();
-                //}
-            }
-            context.SaveChanges(); //3.6 sec
-            stopwatch.Stop();
-            Console.WriteLine($"Add 10 000 numbers {stopwatch.Elapsed.TotalSeconds} sec");
+
+            #region Numbers
+
+            //var numbers = new List<PhoneNumber>(numbersCount);
+            //var stopwatch = new Stopwatch();
+            //stopwatch.Start();
+            //var context = new CallsDbContext();
+            //for (int i = 1; i <= numbersCount; i++)
+            //{
+            //    var number = new PhoneNumber
+            //    {
+            //        Number = Guid.NewGuid().ToString()
+            //    };
+            //    numbers.Add(number);
+            //    context.PhoneNumbers.Add(number);
+            //    //if (i % numbersBatchSize == 0)
+            //    //{
+            //    //    context.SaveChanges(); //3.4 sec
+            //    //    context = new CallsDbContext();
+            //    //}
+            //}
+            //context.SaveChanges(); //3.6 sec
+            //stopwatch.Stop();
+            //Console.WriteLine($"Add 10 000 numbers {stopwatch.Elapsed.TotalSeconds} sec");
+
+            #endregion
 
             #region EF insert
 
@@ -107,12 +112,59 @@ namespace Calls.NetCore
 
             #region BulkWriter
 
-            var startId = 1;
-            if (context.Calls.Any())
+            //var startId = 1;
+            //if (context.Calls.Any())
+            //{
+            //    startId = context.Calls.Max(x => x.Id) + 1;
+            //}
+            //var random = new Random();
+            //var calls = new List<Call>(callsCount);
+            //for (int i = 1; i <= callsCount; i++)
+            //{
+            //    var from = numbers[random.Next() % numbersCount];
+            //    var to = numbers[random.Next() % numbersCount];
+            //    var call = new Call
+            //    {
+            //        Id = startId++,
+            //        CallerId = from.Id,
+            //        ReceiverId = to.Id,
+            //        Duration = random.Next()
+            //    };
+
+            //    calls.Add(call);
+            //}
+            //stopwatch.Start();
+            //using (var bulkWriter = new BulkWriter<Call>(@"Server=.;Database=Calls;Trusted_Connection=True;MultipleActiveResultSets=true"))
+            //{
+            //    //1 billion rows - 15 sec, 100_000 rows 6 sec
+            //    bulkWriter.WriteToDatabase(calls);
+            //}
+            //stopwatch.Stop();
+            //Console.WriteLine($"Add 100 000 calls with BulkWriter {stopwatch.Elapsed.TotalSeconds} sec");
+            #endregion
+
+            #region EF Core BulkExtensions 
+
+            var numbers = new List<PhoneNumber>(numbersCount);
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            var context = new CallsDbContext();
+            for (int i = 1; i <= numbersCount; i++)
             {
-                startId = context.Calls.Max(x => x.Id) + 1;
+                var number = new PhoneNumber
+                {
+                    Number = Guid.NewGuid().ToString()
+                };
+                numbers.Add(number);
             }
+            context.BulkInsert(numbers);
+            context.SaveChanges(); // 2.3 sec
+            stopwatch.Stop();
+            Console.WriteLine($"Add 10 000 numbers {stopwatch.Elapsed.TotalSeconds} sec");
+
+            stopwatch.Start();
             var random = new Random();
+            context = new CallsDbContext();
             var calls = new List<Call>(callsCount);
             for (int i = 1; i <= callsCount; i++)
             {
@@ -120,22 +172,19 @@ namespace Calls.NetCore
                 var to = numbers[random.Next() % numbersCount];
                 var call = new Call
                 {
-                    Id = startId++,
-                    CallerId = from.Id,
-                    ReceiverId = to.Id,
+                    //CallerId = from.Id,
+                    //ReceiverId = to.Id,
+                    Caller = from,
+                    Receiver = to,
                     Duration = random.Next()
                 };
-
                 calls.Add(call);
             }
-            stopwatch.Start();
-            using (var bulkWriter = new BulkWriter<Call>(@"Server=.;Database=Calls;Trusted_Connection=True;MultipleActiveResultSets=true"))
-            {
-                //1 billion rows - 15 sec, 100_000 rows 6 sec
-                bulkWriter.WriteToDatabase(calls);
-            }
+            context.BulkInsert(calls);
+            context.SaveChanges(); // 3.5 sec
             stopwatch.Stop();
-            Console.WriteLine($"Add 100 000 calls with BulkWriter {stopwatch.Elapsed.TotalSeconds} sec");
+            Console.WriteLine($"Add 100 000 calls with EFCore.BulkInsert {stopwatch.Elapsed.TotalSeconds} sec");
+            
             #endregion
         }
     }
