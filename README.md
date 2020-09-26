@@ -1,2 +1,2 @@
 # Test
-Repository for test github features
+Repository for test Bulk Insert with EF Core
